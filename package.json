@@ -1,21 +1,25 @@
 {
-  "name": "noledge",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "next": "16.2.7",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
-  },
-  "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "typescript": "^5"
-  }
+	"name": "noledge",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "next dev",
+		"build": "next build",
+		"start": "next start",
+		"format": "biome format --write .",
+		"lint": "biome lint .",
+		"check": "biome check --write ."
+	},
+	"dependencies": {
+		"next": "16.2.7",
+		"react": "^19.2.7",
+		"react-dom": "^19.2.7"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.16",
+		"@types/node": "^25.9.1",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"typescript": "^6.0.3"
+	}
 }
