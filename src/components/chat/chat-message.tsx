@@ -65,7 +65,7 @@ export function ChatMessage({
 
 function UserMessage({ message }: { message: UiMessage }): React.JSX.Element {
 	return (
-		<Message className="flex-col items-end gap-2">
+		<Message className="animate-message-in flex-col items-end gap-2">
 			{message.attachments && message.attachments.length > 0 ? (
 				<div className="flex flex-wrap justify-end gap-2">
 					{message.attachments.map((attachment) =>
@@ -121,7 +121,7 @@ function AssistantMessage({
 	};
 
 	return (
-		<Message className="flex-col items-start gap-3">
+		<Message className="animate-message-in flex-col items-start gap-3">
 			{message.reasoning ? (
 				<Reasoning isStreaming={isStreaming} className="w-full">
 					<ReasoningTrigger className="text-sm text-muted-foreground">

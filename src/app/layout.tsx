@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AppShell } from "@/components/sidebar/app-shell";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,15 +18,25 @@ export const metadata: Metadata = {
 	description: "noledge",
 };
 
+const themeScript = `(function(){try{var t=localStorage.getItem("noledge-theme");var d=t==="dark"||((!t||t==="system")&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){}})();`;
+
 export default function RootLayout({
 	children,
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+		<html
+			lang="en"
+			className={`${geistSans.variable} ${geistMono.variable}`}
+			suppressHydrationWarning
+		>
+			<head>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: pre-paint theme to avoid flash */}
+				<script dangerouslySetInnerHTML={{ __html: themeScript }} />
+			</head>
 			<body className="bg-background font-sans text-foreground antialiased">
-				{children}
+				<AppShell>{children}</AppShell>
 			</body>
 		</html>
 	);
