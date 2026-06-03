@@ -15,13 +15,53 @@ import type {
 	BrainNode,
 } from "@/lib/ai/brain/graph";
 
+const BG_DARK = "#151718";
+const BG_LIGHT = "#ffffff";
+
+// Tracks the active theme by observing the `.dark` class the theme system
+// toggles on <html>. Decoupled from useTheme(), whose state is per-instance and
+// would not see changes made by other components (e.g. the settings dialog).
+function useIsDark(): boolean {
+	const [isDark, setIsDark] = useState(false);
+	useEffect(() => {
+		const root = document.documentElement;
+		const sync = (): void => setIsDark(root.classList.contains("dark"));
+		sync();
+		const observer = new MutationObserver(sync);
+		observer.observe(root, {
+			attributes: true,
+			attributeFilter: ["class"],
+		});
+		return () => observer.disconnect();
+	}, []);
+	return isDark;
+}
+
 type GraphNode = NodeObject<BrainNode>;
 type GraphLink = BrainLink;
 
-const NODE_HOT = "#f0fdff"; // highlighted node — near-white glow
-const NODE_DIM = "#1e3a44"; // faded when another node is focused
-const LINK_HOT = "#67e8f9"; // active edge
-const LINK_DIM = "#0c2a33"; // faded edge
+/** Live simulation coordinates force-graph mutates onto each node object. */
+type NodeCoords = { x?: number; y?: number; z?: number };
+
+type ClusterLabel = {
+	documentId: string;
+	title: string;
+	color: string;
+	x: number;
+	y: number;
+	visible: boolean;
+};
+
+// Highlight/dim anchors per theme. Dark mode flares toward near-white on a dark
+// canvas; light mode flares toward near-black so nodes stay legible on white.
+const NODE_HOT_DARK = "#f0fdff";
+const NODE_HOT_LIGHT = "#0f172a";
+const NODE_DIM_DARK = "#1e3a44";
+const NODE_DIM_LIGHT = "#cbd5e1";
+const LINK_HOT_DARK = "#67e8f9";
+const LINK_HOT_LIGHT = "#0e7490";
+const LINK_DIM_DARK = "#0c2a33";
+const LINK_DIM_LIGHT = "#e2e8f0";
 
 // Neon palette — each source document gets its own colour so clusters read.
 const DOC_PALETTE = [
@@ -109,6 +149,7 @@ export function BrainGraph({
 }: {
 	graph: BrainGraphData;
 }): React.JSX.Element {
+	const isDark = useIsDark();
 	const fgRef = useRef<ForceGraphMethods<GraphNode, GraphLink>>(undefined);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [size, setSize] = useState({ width: 0, height: 0 });
@@ -130,6 +171,17 @@ export function BrainGraph({
 		[graph],
 	);
 
+	// onNodeHover fires on every pointer move over a node and intermittently
+	// reports null between frames, which made the highlight flicker. Ignore events
+	// that do not actually change the hovered node.
+	const handleNodeHover = useCallback((node: GraphNode | null): void => {
+		const nextId = node ? String(node.id) : null;
+		setHovered((prev) => {
+			const prevId = prev ? String(prev.id) : null;
+			return nextId === prevId ? prev : node;
+		});
+	}, []);
+
 	const focus = useMemo(
 		() => (hovered ? neighborsOf(hovered, data.links) : null),
 		[hovered, data.links],
@@ -143,6 +195,32 @@ export function BrainGraph({
 	if (hovered) hoveredIdRef.current = String(hovered.id);
 
 	const docColors = useMemo(() => documentColorMap(data.nodes), [data.nodes]);
+
+	// One cluster per source document: its title plus the node ids that compose it,
+	// so a single label can be parked at the cluster's centroid.
+	const clusters = useMemo(() => {
+		const byDoc = new Map<
+			string,
+			{ documentId: string; title: string; nodeIds: string[] }
+		>();
+		for (const node of data.nodes) {
+			const existing = byDoc.get(node.documentId);
+			if (existing) {
+				existing.nodeIds.push(String(node.id));
+			} else {
+				byDoc.set(node.documentId, {
+					documentId: node.documentId,
+					title: node.documentTitle,
+					nodeIds: [String(node.id)],
+				});
+			}
+		}
+		return [...byDoc.values()];
+	}, [data.nodes]);
+
+	// Screen-space position + visibility for each cluster label, refreshed every
+	// frame from the projected centroid of the cluster's nodes.
+	const [labels, setLabels] = useState<ClusterLabel[]>([]);
 
 	// Track container size so the canvas fills available space responsively.
 	useEffect(() => {
@@ -164,19 +242,26 @@ export function BrainGraph({
 	useEffect(() => {
 		const fg = fgRef.current;
 		if (!fg || size.width === 0) return;
+		// Additive bloom only reads well on a dark canvas; on white it washes the
+		// whole scene out, so it is disabled in light mode.
+		if (!isDark) {
+			fg.refresh();
+			return;
+		}
 		const bloom = new UnrealBloomPass(
 			new THREE.Vector2(size.width, size.height),
-			0.9, // strength — soft baseline so nodes aren't all blown out
+			0.5, // strength — kept low so the background stays dark, not washed out
 			0.6, // radius
-			0.35, // threshold — only the brighter (active) nodes flare
+			0.6, // threshold — only the brightest (active) nodes flare
 		);
 		const composer = fg.postProcessingComposer();
 		composer.addPass(bloom);
+		fg.refresh();
 		return () => {
 			composer.removePass(bloom);
 			bloom.dispose();
 		};
-	}, [size.width, size.height]);
+	}, [size.width, size.height, isDark]);
 
 	// One-time layout setup: forces, controls, and initial framing. Kept out of
 	// the resize effect so collapsing the sidebar never reheats/re-scatters the
@@ -255,31 +340,100 @@ export function BrainGraph({
 		return () => cancelAnimationFrame(frame);
 	}, [data, size.width]);
 
+	// Project each cluster centroid to screen space every frame so the labels
+	// track the constellation as it settles, rotates, or zooms.
+	useEffect(() => {
+		const fg = fgRef.current;
+		if (!fg || size.width === 0 || clusters.length === 0) return;
+		// force-graph mutates live x/y/z onto these node objects at runtime, which
+		// the cloned BrainNode type does not express; read them through a coord view.
+		const nodeById = new Map<string, NodeCoords>(
+			data.nodes.map((node) => [String(node.id), node as NodeCoords]),
+		);
+		let frame = 0;
+		let prev: ClusterLabel[] = [];
+		// Skip the React update unless a label actually moved or toggled, so the
+		// overlay stops re-rendering once the simulation settles.
+		const changedEnough = (a: ClusterLabel[], b: ClusterLabel[]): boolean => {
+			if (a.length !== b.length) return true;
+			for (let i = 0; i < a.length; i += 1) {
+				const x = a[i];
+				const y = b[i];
+				if (!x || !y) return true;
+				if (x.documentId !== y.documentId || x.visible !== y.visible)
+					return true;
+				if (Math.abs(x.x - y.x) > 0.5 || Math.abs(x.y - y.y) > 0.5) return true;
+			}
+			return false;
+		};
+		const tick = (): void => {
+			const next: ClusterLabel[] = [];
+			for (const cluster of clusters) {
+				let sx = 0;
+				let sy = 0;
+				let count = 0;
+				for (const id of cluster.nodeIds) {
+					const node = nodeById.get(id);
+					if (!node || node.x == null || node.y == null) continue;
+					const screen = fg.graph2ScreenCoords(node.x, node.y, node.z ?? 0);
+					sx += screen.x;
+					sy += screen.y;
+					count += 1;
+				}
+				if (count === 0) continue;
+				const x = sx / count;
+				const y = sy / count;
+				next.push({
+					documentId: cluster.documentId,
+					title: cluster.title,
+					color: docColors.get(cluster.documentId) ?? "#22d3ee",
+					x,
+					y,
+					visible: x >= 0 && y >= 0 && x <= size.width && y <= size.height,
+				});
+			}
+			if (changedEnough(next, prev)) {
+				prev = next;
+				setLabels(next);
+			}
+			frame = requestAnimationFrame(tick);
+		};
+		frame = requestAnimationFrame(tick);
+		return () => cancelAnimationFrame(frame);
+	}, [clusters, data.nodes, docColors, size.width, size.height]);
+
 	const nodeColor = useCallback(
 		(node: GraphNode): string => {
-			const base = docColors.get(node.documentId) ?? "#22d3ee";
+			const palette = docColors.get(node.documentId) ?? "#22d3ee";
+			// On white the neon palette is too light; darken it for contrast.
+			const base = isDark ? palette : lerpColor(palette, "#0f172a", 0.45);
+			const hot = isDark ? NODE_HOT_DARK : NODE_HOT_LIGHT;
+			const dim = isDark ? NODE_DIM_DARK : NODE_DIM_LIGHT;
 			const intensity = nodeIntensity.current.get(String(node.id)) ?? 0;
 			if (intensity >= 0) {
 				// 0 → resting colour, 1 → bright flare on the focused node.
 				const isHovered = String(node.id) === hoveredIdRef.current;
-				return lerpColor(base, isHovered ? NODE_HOT : base, intensity);
+				return lerpColor(base, isHovered ? hot : base, intensity);
 			}
 			// Negative intensity fades toward the dim colour for unrelated nodes.
-			return lerpColor(base, NODE_DIM, -intensity);
+			return lerpColor(base, dim, -intensity);
 		},
-		[docColors],
+		[docColors, isDark],
 	);
 
-	const linkColor = useCallback((link: GraphLink): string => {
-		const resting = link.kind === "sequence" ? "#155e75" : "#0e7490";
-		const intensity = linkIntensity.current.get(link) ?? 0;
-		if (intensity <= 0.001) return focusRef.current ? LINK_DIM : resting;
-		return lerpColor(
-			focusRef.current ? LINK_DIM : resting,
-			LINK_HOT,
-			intensity,
-		);
-	}, []);
+	const linkColor = useCallback(
+		(link: GraphLink): string => {
+			const restingDark = link.kind === "sequence" ? "#155e75" : "#0e7490";
+			const restingLight = link.kind === "sequence" ? "#94a3b8" : "#64748b";
+			const resting = isDark ? restingDark : restingLight;
+			const hot = isDark ? LINK_HOT_DARK : LINK_HOT_LIGHT;
+			const dim = isDark ? LINK_DIM_DARK : LINK_DIM_LIGHT;
+			const intensity = linkIntensity.current.get(link) ?? 0;
+			if (intensity <= 0.001) return focusRef.current ? dim : resting;
+			return lerpColor(focusRef.current ? dim : resting, hot, intensity);
+		},
+		[isDark],
+	);
 
 	const linkWidth = useCallback((link: GraphLink): number => {
 		const intensity = linkIntensity.current.get(link) ?? 0;
@@ -299,7 +453,7 @@ export function BrainGraph({
 				width={size.width || undefined}
 				height={size.height || undefined}
 				graphData={data}
-				backgroundColor="#05080d"
+				backgroundColor={isDark ? BG_DARK : BG_LIGHT}
 				nodeId="id"
 				nodeLabel={(node) =>
 					`<div style="max-width:260px"><strong>${escapeHtml(node.documentTitle)}</strong> · #${node.ordinal}<br/>${escapeHtml(node.preview)}</div>`
@@ -315,8 +469,10 @@ export function BrainGraph({
 				linkDirectionalParticles={particles}
 				linkDirectionalParticleWidth={1.8}
 				linkDirectionalParticleSpeed={0.006}
-				linkDirectionalParticleColor={() => LINK_HOT}
-				onNodeHover={(node) => setHovered(node)}
+				linkDirectionalParticleColor={() =>
+					isDark ? LINK_HOT_DARK : LINK_HOT_LIGHT
+				}
+				onNodeHover={handleNodeHover}
 				onNodeClick={(node) => {
 					const fg = fgRef.current;
 					if (!fg || node.x == null || node.y == null || node.z == null) return;
@@ -331,6 +487,26 @@ export function BrainGraph({
 				enableNodeDrag={false}
 				showNavInfo={false}
 			/>
+			{labels.map((label) =>
+				label.visible ? (
+					<span
+						key={label.documentId}
+						className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
+						style={{
+							left: label.x,
+							top: label.y,
+							color: isDark
+								? label.color
+								: lerpColor(label.color, "#0f172a", 0.5),
+							backgroundColor: isDark
+								? "rgba(21, 23, 24, 0.6)"
+								: "rgba(255, 255, 255, 0.7)",
+						}}
+					>
+						{label.title}
+					</span>
+				) : null,
+			)}
 		</div>
 	);
 }
