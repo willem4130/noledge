@@ -44,6 +44,38 @@ describe("migrate", () => {
 		expect(cols.has("end")).toBe(true);
 	});
 
+	it("adds document provenance columns + automation tables", () => {
+		db = openVecDb();
+		migrate(db);
+
+		const docCols = columnNames(db, "documents");
+		expect(docCols.has("source_id")).toBe(true);
+		expect(docCols.has("external_id")).toBe(true);
+		expect(docCols.has("source_url")).toBe(true);
+
+		expect(tableExists(db, "automation_sources")).toBe(true);
+		expect(tableExists(db, "automation_config")).toBe(true);
+	});
+
+	it("enforces the source/external_id unique index but allows NULL external_id", () => {
+		db = openVecDb();
+		migrate(db);
+
+		const insert = db.prepare(
+			"INSERT INTO documents (id, title, filename, mime, bytes, created_at, source_id, external_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		);
+		insert.run("d1", "T", "t.txt", "text/plain", 1, 0, "s1", "vid-1");
+		expect(() =>
+			insert.run("d2", "T", "t.txt", "text/plain", 1, 0, "s1", "vid-1"),
+		).toThrow();
+
+		// Manual uploads keep external_id NULL and are never deduped against.
+		insert.run("m1", "T", "a.txt", "text/plain", 1, 0, null, null);
+		expect(() =>
+			insert.run("m2", "T", "b.txt", "text/plain", 1, 0, null, null),
+		).not.toThrow();
+	});
+
 	it("backfills the FTS index for rows that predate the fts table", () => {
 		db = openVecDb();
 		// Simulate a pre-upgrade DB: chunks exist, no FTS table yet.

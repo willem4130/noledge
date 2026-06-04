@@ -1,13 +1,20 @@
-import { BookOpen, Brain, type LucideIcon, MessageSquare } from "lucide-react";
+import {
+	BookOpen,
+	Brain,
+	ChatText,
+	FlowArrow,
+	type Icon,
+} from "@phosphor-icons/react";
 
 export type NavItem = {
 	readonly title: string;
 	readonly href: string;
-	readonly icon: LucideIcon;
+	readonly icon: Icon;
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
-	{ title: "Chat", href: "/", icon: MessageSquare },
+	{ title: "Chat", href: "/", icon: ChatText },
 	{ title: "Knowledge", href: "/knowledge", icon: BookOpen },
 	{ title: "The Brain", href: "/brain", icon: Brain },
+	{ title: "Automate", href: "/automate", icon: FlowArrow },
 ];

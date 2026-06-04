@@ -1,6 +1,6 @@
 "use client";
 
-import { Settings } from "lucide-react";
+import { Gear } from "@phosphor-icons/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -483,7 +483,7 @@ export function Chat(): React.JSX.Element {
 										?.click();
 								}}
 							>
-								<Settings className="size-4" />
+								<Gear className="size-4" />
 								Open Settings
 							</Button>
 						</div>

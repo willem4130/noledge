@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
 		"officeparser",
 		"tesseract.js",
 		"tesseract.js-core",
+		"youtubei.js",
 	],
 	devIndicators: false,
 };

@@ -1,6 +1,12 @@
 "use client";
 
-import { CheckCircle2, FileText, Loader2, UploadCloud, X } from "lucide-react";
+import {
+	CheckCircle,
+	CircleNotch,
+	CloudArrowUp,
+	FileText,
+	X,
+} from "@phosphor-icons/react";
 import { useCallback, useRef, useState } from "react";
 
 import { UPLOAD_ACCEPT } from "@/components/chat/chat-input-bar";
@@ -168,7 +174,7 @@ export function UploadDialog({
 							: "border-border hover:bg-accent/50",
 					)}
 				>
-					<UploadCloud className="size-7 text-muted-foreground" />
+					<CloudArrowUp className="size-7 text-muted-foreground" />
 					<span className="text-sm font-medium">
 						Drag files here or click to browse
 					</span>
@@ -185,9 +191,9 @@ export function UploadDialog({
 								className="flex items-center gap-3 py-3 text-sm"
 							>
 								{item.status === "uploading" ? (
-									<Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+									<CircleNotch className="size-4 shrink-0 animate-spin text-muted-foreground" />
 								) : item.status === "done" ? (
-									<CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-500" />
+									<CheckCircle className="size-4 shrink-0 text-emerald-600 dark:text-emerald-500" />
 								) : (
 									<FileText
 										className={cn(
@@ -239,7 +245,7 @@ export function UploadDialog({
 					>
 						{busy ? (
 							<>
-								<Loader2 className="size-4 animate-spin" />
+								<CircleNotch className="size-4 animate-spin" />
 								Uploading…
 							</>
 						) : (

@@ -61,10 +61,60 @@ export function migrate(db: Database): void {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_conversation_messages_conversation_id ON conversation_messages(conversation_id);
+
+		CREATE TABLE IF NOT EXISTS automation_sources (
+			id              TEXT PRIMARY KEY,
+			type            TEXT NOT NULL,          -- 'rss' | 'youtube'
+			url             TEXT NOT NULL,          -- feed URL or channel URL/@handle (as entered)
+			identifier      TEXT,                   -- resolved: feed home / channelId (UC...)
+			title           TEXT,                   -- resolved feed/channel title
+			enabled         INTEGER NOT NULL DEFAULT 1,
+			created_at      INTEGER NOT NULL,
+			last_polled_at  INTEGER,
+			last_status     TEXT,                   -- 'ok' | 'error' | 'partial'
+			last_error      TEXT,
+			last_item_count INTEGER NOT NULL DEFAULT 0
+		);
+
+		CREATE TABLE IF NOT EXISTS automation_config (
+			id            INTEGER PRIMARY KEY CHECK (id = 1),  -- singleton row
+			schedule_hour INTEGER,               -- 0..23, NULL = disabled
+			timezone      TEXT,                  -- IANA tz, e.g. 'Europe/London'
+			last_run_at   INTEGER
+		);
 	`);
 
 	addChunkSpanColumns(db);
+	addDocumentProvenanceColumns(db);
 	createChunksFts(db);
+}
+
+/**
+ * Add nullable provenance columns to `documents` if absent — they tie an ingested
+ * document back to the automation source it came from and enable dedup. Manual
+ * uploads leave all three NULL. SQLite has no `ADD COLUMN IF NOT EXISTS`, so we
+ * detect via `PRAGMA table_info` first, then create the partial unique index that
+ * guards against re-ingesting the same `(source_id, external_id)` pair.
+ */
+function addDocumentProvenanceColumns(db: Database): void {
+	const columns = db.prepare("PRAGMA table_info(documents)").all() as {
+		name: string;
+	}[];
+	const present = new Set(columns.map((column) => column.name));
+	if (!present.has("source_id")) {
+		db.exec("ALTER TABLE documents ADD COLUMN source_id TEXT");
+	}
+	if (!present.has("external_id")) {
+		db.exec("ALTER TABLE documents ADD COLUMN external_id TEXT");
+	}
+	if (!present.has("source_url")) {
+		db.exec("ALTER TABLE documents ADD COLUMN source_url TEXT");
+	}
+	// Dedup guard: a given source can hold at most one document per external id.
+	// Manual uploads (external_id IS NULL) are unaffected by the partial index.
+	db.exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_source_external ON documents(source_id, external_id) WHERE external_id IS NOT NULL",
+	);
 }
 
 /**

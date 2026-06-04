@@ -27,6 +27,22 @@ export type IngestInput = {
 	title?: string;
 };
 
+/**
+ * Source-agnostic ingest input: text already in hand (blog post body, video
+ * transcript, …) plus the provenance needed for dedup and display. `sourceId` +
+ * `externalId` key the dedup unique index; both NULL for manual uploads.
+ */
+export type IngestTextInput = {
+	text: string;
+	title: string;
+	filename: string;
+	mime: string;
+	bytes: number;
+	sourceId?: string;
+	externalId?: string;
+	sourceUrl?: string;
+};
+
 export type IngestResult =
 	| { ok: true; documentId: string; chunks: number }
 	| { ok: false; error: string };
@@ -40,15 +56,13 @@ export type IngestOptions = {
 
 /**
  * Ingest a document: extract text → chunk → embed → store rows + vectors in a
- * single transaction. Returns a `Result`.
+ * single transaction. Returns a `Result`. Delegates the chunk→embed→store tail
+ * to {@link ingestText} so file uploads and feed items share one code path.
  */
 export async function ingestDocument(
 	input: IngestInput,
 	options: IngestOptions = {},
 ): Promise<IngestResult> {
-	const db = options.db ?? getDatabase();
-	const embedder = options.embedder ?? embedTexts;
-
 	const extracted = await extractText(
 		input.data,
 		input.filename,
@@ -57,8 +71,33 @@ export async function ingestDocument(
 	);
 	if (!extracted.ok) return { ok: false, error: extracted.error };
 
+	return ingestText(
+		{
+			text: extracted.text,
+			title: input.title?.trim() || input.filename,
+			filename: input.filename,
+			mime: input.mime,
+			bytes: input.data.byteLength,
+		},
+		options,
+	);
+}
+
+/**
+ * Ingest already-extracted text: chunk → embed → store rows + vectors + the
+ * provenance columns in a single transaction. Source-agnostic — used directly by
+ * the automation poller for feed items and indirectly by {@link ingestDocument}
+ * for file uploads.
+ */
+export async function ingestText(
+	input: IngestTextInput,
+	options: IngestOptions = {},
+): Promise<IngestResult> {
+	const db = options.db ?? getDatabase();
+	const embedder = options.embedder ?? embedTexts;
+
 	const chunks = chunkTextWithSpans(
-		extracted.text,
+		input.text,
 		options.chunkOptions ?? DEFAULT_CHUNK_OPTIONS,
 	);
 	if (chunks.length === 0) {
@@ -75,10 +114,10 @@ export async function ingestDocument(
 	}
 
 	const documentId = randomUUID();
-	const title = input.title?.trim() || input.filename;
+	const title = input.title.trim() || input.filename;
 
 	const insertDocument = db.prepare(
-		"INSERT INTO documents (id, title, filename, mime, bytes, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT INTO documents (id, title, filename, mime, bytes, created_at, source_id, external_id, source_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 	);
 	const insertChunk = db.prepare(
 		"INSERT INTO chunks (id, document_id, ordinal, content, start, end) VALUES (?, ?, ?, ?, ?, ?)",
@@ -93,8 +132,11 @@ export async function ingestDocument(
 			title,
 			input.filename,
 			input.mime,
-			input.data.byteLength,
+			input.bytes,
 			Date.now(),
+			input.sourceId ?? null,
+			input.externalId ?? null,
+			input.sourceUrl ?? null,
 		);
 		chunks.forEach((chunk, ordinal) => {
 			const chunkId = randomUUID();

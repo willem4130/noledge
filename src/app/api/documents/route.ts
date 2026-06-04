@@ -10,6 +10,8 @@ type DocumentRow = {
 	mime: string;
 	bytes: number;
 	created_at: number;
+	source_id: string | null;
+	source_url: string | null;
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -66,7 +68,7 @@ export async function GET(): Promise<Response> {
 	const db = getDatabase();
 	const rows = db
 		.prepare(
-			"SELECT id, title, filename, mime, bytes, created_at FROM documents ORDER BY created_at DESC",
+			"SELECT id, title, filename, mime, bytes, created_at, source_id, source_url FROM documents ORDER BY created_at DESC",
 		)
 		.all() as DocumentRow[];
 
@@ -77,6 +79,8 @@ export async function GET(): Promise<Response> {
 		mime: row.mime,
 		bytes: row.bytes,
 		createdAt: row.created_at,
+		sourceId: row.source_id,
+		sourceUrl: row.source_url,
 		chunks: (
 			db
 				.prepare("SELECT COUNT(*) AS count FROM chunks WHERE document_id = ?")

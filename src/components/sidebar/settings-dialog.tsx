@@ -1,7 +1,7 @@
 "use client";
 
-import { Monitor, Moon, Plug, Settings, Sun, User, X } from "lucide-react";
-import { useState } from "react";
+import { Gear, Monitor, Moon, Plug, Sun, User } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,9 +15,12 @@ import { type Theme, useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import { ProvidersSection } from "./providers-section";
 
+export type SettingsTab = "general" | "providers" | "account";
+
 type SettingsDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	initialTab?: SettingsTab;
 };
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
@@ -26,10 +29,8 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
 	{ value: "system", label: "System", icon: Monitor },
 ];
 
-type Tab = "general" | "providers" | "account";
-
-const TABS: { id: Tab; label: string; icon: typeof Settings }[] = [
-	{ id: "general", label: "General", icon: Settings },
+const TABS: { id: SettingsTab; label: string; icon: typeof Gear }[] = [
+	{ id: "general", label: "General", icon: Gear },
 	{ id: "providers", label: "Providers", icon: Plug },
 	{ id: "account", label: "Account", icon: User },
 ];
@@ -37,35 +38,26 @@ const TABS: { id: Tab; label: string; icon: typeof Settings }[] = [
 export function SettingsDialog({
 	open,
 	onOpenChange,
+	initialTab = "general",
 }: SettingsDialogProps): React.JSX.Element {
 	const { theme, setTheme } = useTheme();
-	const [activeTab, setActiveTab] = useState<Tab>("general");
+	const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+	// Honor the requested tab each time the dialog is opened.
+	useEffect(() => {
+		if (open) setActiveTab(initialTab);
+	}, [open, initialTab]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent
-				showCloseButton={false}
-				className="h-[calc(100%-2rem)] max-h-[720px] w-[calc(100%-2rem)] max-w-4xl overflow-hidden border-0 p-0 sm:max-w-4xl"
-			>
+			<DialogContent className="h-[calc(100%-2rem)] max-h-[720px] w-[calc(100%-2rem)] max-w-4xl overflow-hidden border-0 p-0 sm:max-w-4xl">
 				<DialogTitle className="sr-only">Settings</DialogTitle>
 				<DialogDescription className="sr-only">
 					Manage your general, provider, and account settings.
 				</DialogDescription>
 				<div className="flex h-full">
 					{/* Left sidebar */}
-					<aside className="flex w-52 flex-col border-r">
-						<div className="flex items-center justify-end p-4">
-							<Button
-								variant="ghost"
-								size="icon"
-								className="size-8"
-								onClick={() => onOpenChange(false)}
-								type="button"
-							>
-								<X className="size-4" />
-								<span className="sr-only">Close</span>
-							</Button>
-						</div>
+					<aside className="flex w-52 flex-col border-r py-4">
 						<nav className="flex flex-1 flex-col gap-1 px-3">
 							{TABS.map((tab) => (
 								<button

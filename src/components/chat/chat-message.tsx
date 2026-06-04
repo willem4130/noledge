@@ -1,13 +1,13 @@
 "use client";
 
 import {
+	ArrowsCounterClockwise,
 	Check,
 	Copy,
 	FileText,
-	RefreshCcw,
 	ThumbsDown,
 	ThumbsUp,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import {
 	ChainOfThought,
@@ -199,7 +199,7 @@ function AssistantMessage({
 					</MessageAction>
 					<MessageAction tooltip="Regenerate">
 						<Button variant="ghost" size="icon" onClick={onRegenerate}>
-							<RefreshCcw className="size-4" />
+							<ArrowsCounterClockwise className="size-4" />
 						</Button>
 					</MessageAction>
 					<MessageAction tooltip="Good response">

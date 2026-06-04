@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ChatListItem } from "./chat-list-item";
 import { NAV_ITEMS } from "./nav-data";
-import { SettingsDialog } from "./settings-dialog";
+import { SettingsDialog, type SettingsTab } from "./settings-dialog";
 
 type Conversation = {
 	id: string;
@@ -35,6 +35,7 @@ export function AppSidebar(): React.JSX.Element {
 	const searchParams = useSearchParams();
 	const activeChatId = searchParams.get("chat");
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
 	const [conversations, setConversations] = useState<Conversation[]>([]);
 	const [loading, setLoading] = useState(true);
 
@@ -65,6 +66,19 @@ export function AppSidebar(): React.JSX.Element {
 			window.removeEventListener("conversations:changed", handler);
 		};
 	}, [load]);
+
+	// Allow other views (e.g. Automate) to open Settings on a specific tab.
+	useEffect(() => {
+		const handler = (event: Event): void => {
+			const detail = (event as CustomEvent<{ tab?: SettingsTab }>).detail;
+			setSettingsTab(detail?.tab ?? "general");
+			setSettingsOpen(true);
+		};
+		window.addEventListener("noledge:open-settings", handler);
+		return () => {
+			window.removeEventListener("noledge:open-settings", handler);
+		};
+	}, []);
 
 	return (
 		<Sidebar collapsible="icon">
@@ -173,7 +187,11 @@ export function AppSidebar(): React.JSX.Element {
 					</SidebarMenuItem>
 				</SidebarMenu>
 			</SidebarFooter>
-			<SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+			<SettingsDialog
+				open={settingsOpen}
+				onOpenChange={setSettingsOpen}
+				initialTab={settingsTab}
+			/>
 		</Sidebar>
 	);
 }

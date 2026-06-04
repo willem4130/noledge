@@ -1,15 +1,16 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
+import type { Icon } from "@phosphor-icons/react";
 import {
+	CircleNotch,
 	FileImage,
-	FileSpreadsheet,
+	FilePdf,
 	FileText,
-	FileType,
-	Loader2,
-	Trash2,
+	FileXls,
+	MonitorPlay,
+	Trash,
 	Upload,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { UploadDialog } from "@/components/knowledge/upload-dialog";
@@ -23,6 +24,8 @@ type DocumentItem = {
 	bytes: number;
 	createdAt: number;
 	chunks: number;
+	sourceId: string | null;
+	sourceUrl: string | null;
 };
 
 function formatBytes(bytes: number): string {
@@ -39,16 +42,29 @@ function formatDate(ms: number): string {
 	});
 }
 
-function extensionOf(filename: string): string {
-	const dot = filename.lastIndexOf(".");
-	return dot === -1 ? "" : filename.slice(dot + 1).toUpperCase();
+function isYoutubeUrl(url: string | null): boolean {
+	if (!url) return false;
+	return /(?:youtube\.com|youtu\.be)/i.test(url);
 }
 
-function iconFor(mime: string, filename: string): LucideIcon {
-	const ext = filename.toLowerCase().split(".").pop() ?? "";
-	if (mime.startsWith("image/")) return FileImage;
-	if (["xlsx", "ods", "csv"].includes(ext)) return FileSpreadsheet;
-	if (mime === "application/pdf" || ext === "pdf") return FileType;
+/**
+ * Human label for the Type column. Automation-sourced docs read from provenance
+ * (YouTube → “Video”, any other feed source → “Article”); manual uploads fall back
+ * to the file extension, since their filename is a real file name.
+ */
+function typeLabel(doc: DocumentItem): string {
+	if (isYoutubeUrl(doc.sourceUrl)) return "Video";
+	if (doc.sourceId) return "Article";
+	const dot = doc.filename.lastIndexOf(".");
+	return dot === -1 ? "—" : doc.filename.slice(dot + 1).toUpperCase();
+}
+
+function iconFor(doc: DocumentItem): Icon {
+	if (isYoutubeUrl(doc.sourceUrl)) return MonitorPlay;
+	const ext = doc.filename.toLowerCase().split(".").pop() ?? "";
+	if (doc.mime.startsWith("image/")) return FileImage;
+	if (["xlsx", "ods", "csv"].includes(ext)) return FileXls;
+	if (doc.mime === "application/pdf" || ext === "pdf") return FilePdf;
 	return FileText;
 }
 
@@ -105,7 +121,7 @@ export default function KnowledgePage(): React.JSX.Element {
 
 			{loading ? (
 				<div className="flex flex-1 items-center justify-center">
-					<Loader2 className="size-6 animate-spin text-muted-foreground" />
+					<CircleNotch className="size-6 animate-spin text-muted-foreground" />
 				</div>
 			) : isEmpty ? (
 				<div className="flex flex-1 flex-col items-center justify-center gap-1 py-16 text-center">
@@ -129,7 +145,7 @@ export default function KnowledgePage(): React.JSX.Element {
 						</thead>
 						<tbody>
 							{documents.map((doc) => {
-								const Icon = iconFor(doc.mime, doc.filename);
+								const Icon = iconFor(doc);
 								return (
 									<tr
 										key={doc.id}
@@ -147,7 +163,7 @@ export default function KnowledgePage(): React.JSX.Element {
 											</div>
 										</td>
 										<td className="px-4 py-3 text-muted-foreground">
-											{extensionOf(doc.filename) || "—"}
+											{typeLabel(doc)}
 										</td>
 										<td className="px-4 py-3 text-right tabular-nums">
 											{doc.chunks}
@@ -171,9 +187,9 @@ export default function KnowledgePage(): React.JSX.Element {
 												}}
 											>
 												{deleting === doc.id ? (
-													<Loader2 className="size-4 animate-spin" />
+													<CircleNotch className="size-4 animate-spin" />
 												) : (
-													<Trash2 className="size-4" />
+													<Trash className="size-4" />
 												)}
 											</Button>
 										</td>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Loader2, Plus, Trash2, X } from "lucide-react";
+import { Check, CircleNotch, Plus, Trash, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -145,7 +145,7 @@ export function ProvidersSection(): React.JSX.Element {
 
 			{loading ? (
 				<div className="flex items-center justify-center py-6">
-					<Loader2 className="size-5 animate-spin text-muted-foreground" />
+					<CircleNotch className="size-5 animate-spin text-muted-foreground" />
 				</div>
 			) : (
 				<ul className="flex flex-col divide-y">
@@ -206,9 +206,9 @@ export function ProvidersSection(): React.JSX.Element {
 													onClick={() => void remove(provider.id)}
 												>
 													{removing === provider.id ? (
-														<Loader2 className="size-4 animate-spin" />
+														<CircleNotch className="size-4 animate-spin" />
 													) : (
-														<Trash2 className="size-4" />
+														<Trash className="size-4" />
 													)}
 												</Button>
 											) : null}
@@ -260,7 +260,7 @@ export function ProvidersSection(): React.JSX.Element {
 												onClick={() => void save(provider.id)}
 											>
 												{draft.saving ? (
-													<Loader2 className="size-4 animate-spin" />
+													<CircleNotch className="size-4 animate-spin" />
 												) : (
 													<Check className="size-4" />
 												)}

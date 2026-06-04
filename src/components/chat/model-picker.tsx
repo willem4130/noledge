@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { CaretDown } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,7 +63,7 @@ export function ModelPicker({
 			<DropdownMenuTrigger asChild>
 				<Button variant="ghost" size="sm" type="button" className="gap-1.5">
 					<span className="max-w-32 truncate">{current?.label ?? "Model"}</span>
-					<ChevronDown className="size-3.5 opacity-60" />
+					<CaretDown className="size-3.5 opacity-60" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start" className="border-0">

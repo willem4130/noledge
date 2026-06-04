@@ -1,6 +1,13 @@
 "use client";
 
-import { ArrowUp, FileText, Globe, Paperclip, Square, X } from "lucide-react";
+import {
+	ArrowUp,
+	FileText,
+	Globe,
+	Paperclip,
+	Square,
+	X,
+} from "@phosphor-icons/react";
 
 import {
 	FileUpload,
@@ -152,7 +159,7 @@ export function ChatInputBar({
 								type="button"
 								aria-label="Stop"
 							>
-								<Square className="size-4 fill-current" />
+								<Square weight="fill" className="size-4" />
 							</Button>
 						) : (
 							<Button

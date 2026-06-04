@@ -2,7 +2,7 @@ import type { Database } from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import { openDatabase } from "@/lib/ai/db/client";
 import type { Embedder } from "./ingest";
-import { ingestDocument } from "./ingest";
+import { ingestDocument, ingestText } from "./ingest";
 import { retrieveChunks } from "./retrieve";
 
 /**
@@ -252,6 +252,63 @@ describe("ingest + retrieve", () => {
 		expect(() =>
 			db?.exec("INSERT INTO chunks_fts(chunks_fts) VALUES('integrity-check')"),
 		).not.toThrow();
+	});
+
+	it("writes provenance columns via ingestText", async () => {
+		db = openDatabase(":memory:");
+		const result = await ingestText(
+			{
+				text: "The cat sat on the warm windowsill purring.",
+				title: "A blog post about a cat",
+				filename: "cat-post",
+				mime: "text/html",
+				bytes: 42,
+				sourceId: "src-1",
+				externalId: "guid-1",
+				sourceUrl: "https://example.com/cat",
+			},
+			{ db, embedder, chunkOptions: { size: 1000, overlap: 0 } },
+		);
+		expect(result.ok).toBe(true);
+
+		const row = db
+			.prepare(
+				"SELECT source_id, external_id, source_url FROM documents WHERE source_id = ?",
+			)
+			.get("src-1") as {
+			source_id: string;
+			external_id: string;
+			source_url: string;
+		};
+		expect(row.source_id).toBe("src-1");
+		expect(row.external_id).toBe("guid-1");
+		expect(row.source_url).toBe("https://example.com/cat");
+	});
+
+	it("rejects a duplicate (source_id, external_id) via the unique index", async () => {
+		db = openDatabase(":memory:");
+		const input = {
+			text: "The cat sat on the warm windowsill purring.",
+			title: "Cat",
+			filename: "cat",
+			mime: "text/html",
+			bytes: 10,
+			sourceId: "src-1",
+			externalId: "guid-1",
+		} as const;
+		const first = await ingestText(input, {
+			db,
+			embedder,
+			chunkOptions: { size: 1000, overlap: 0 },
+		});
+		expect(first.ok).toBe(true);
+
+		const second = await ingestText(input, {
+			db,
+			embedder,
+			chunkOptions: { size: 1000, overlap: 0 },
+		});
+		expect(second.ok).toBe(false);
 	});
 
 	it("rejects a document with no extractable text", async () => {

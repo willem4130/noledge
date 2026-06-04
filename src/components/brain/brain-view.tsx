@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Loader2 } from "lucide-react";
+import { Brain, CircleNotch } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
@@ -35,7 +35,7 @@ export function BrainView(): React.JSX.Element {
 	if (loading) {
 		return (
 			<div className="flex size-full items-center justify-center bg-background">
-				<Loader2 className="size-6 animate-spin text-cyan-400/70" />
+				<CircleNotch className="size-6 animate-spin text-cyan-400/70" />
 			</div>
 		);
 	}
