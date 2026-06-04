@@ -35,7 +35,10 @@ export default function RootLayout({
 				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: pre-paint theme to avoid flash */}
 				<script dangerouslySetInnerHTML={{ __html: themeScript }} />
 			</head>
-			<body className="bg-background font-sans text-foreground antialiased">
+			<body
+				className="bg-background font-sans text-foreground antialiased"
+				suppressHydrationWarning
+			>
 				<AppShell>{children}</AppShell>
 			</body>
 		</html>

@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -110,7 +110,6 @@ export function ChatListItem({
 								beginEdit();
 							}}
 						>
-							<MessageSquare className="size-4" />
 							<span className="truncate">{chat.title}</span>
 						</Link>
 					</SidebarMenuButton>
