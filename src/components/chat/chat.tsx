@@ -59,6 +59,17 @@ export function Chat(): React.JSX.Element {
 		}
 	});
 	const [hasModels, setHasModels] = useState<boolean | null>(null);
+	const [reasoningModelIds, setReasoningModelIds] = useState<Set<string>>(
+		() => new Set(),
+	);
+	const [thinking, setThinking] = useState<boolean>(() => {
+		if (typeof window === "undefined") return true;
+		try {
+			return window.localStorage.getItem("noledge-thinking") !== "off";
+		} catch {
+			return true;
+		}
+	});
 	const [loadingConversation, setLoadingConversation] = useState(
 		Boolean(chatIdFromUrl),
 	);
@@ -67,6 +78,8 @@ export function Chat(): React.JSX.Element {
 	const abortRef = useRef<AbortController | null>(null);
 	const modelRef = useRef<string | null>(null);
 	modelRef.current = model;
+	const thinkingRef = useRef<boolean>(thinking);
+	thinkingRef.current = thinking;
 
 	const conversationIdRef = useRef<string | null>(null);
 	const loadedChatIdRef = useRef<string | null>(null);
@@ -83,6 +96,15 @@ export function Chat(): React.JSX.Element {
 			}
 		}
 	}, [model]);
+
+	// Persist thinking toggle
+	useEffect(() => {
+		try {
+			window.localStorage.setItem("noledge-thinking", thinking ? "on" : "off");
+		} catch {
+			/* ignore storage errors */
+		}
+	}, [thinking]);
 
 	// Load conversation from URL
 	useEffect(() => {
@@ -127,8 +149,12 @@ export function Chat(): React.JSX.Element {
 		let active = true;
 		fetch("/api/models")
 			.then((res) => res.json())
-			.then((data: { models: unknown[] }) => {
-				if (active) setHasModels(data.models.length > 0);
+			.then((data: { models: { id: string; reasoning?: boolean }[] }) => {
+				if (!active) return;
+				setHasModels(data.models.length > 0);
+				setReasoningModelIds(
+					new Set(data.models.filter((m) => m.reasoning).map((m) => m.id)),
+				);
 			})
 			.catch(() => {
 				if (active) setHasModels(false);
@@ -223,6 +249,7 @@ export function Chat(): React.JSX.Element {
 					body: JSON.stringify({
 						messages: toApiMessages(history),
 						model: modelRef.current ?? undefined,
+						thinking: thinkingRef.current,
 					}),
 					signal: controller.signal,
 				});
@@ -253,9 +280,10 @@ export function Chat(): React.JSX.Element {
 							pendingText += chunk.text;
 							scheduleFlush();
 						} else if (chunk.type === "reasoning") {
+							setStatus("streaming");
 							updateAssistant(assistantId, (prev) => ({
 								...prev,
-								reasoning: chunk.text,
+								reasoning: (prev.reasoning ?? "") + chunk.text,
 							}));
 						} else if (chunk.type === "step") {
 							updateAssistant(assistantId, (prev) => ({
@@ -385,6 +413,7 @@ export function Chat(): React.JSX.Element {
 		);
 	}
 
+	const thinkingSupported = model ? reasoningModelIds.has(model) : false;
 	const isEmpty = messages.length === 0;
 
 	if (isEmpty) {
@@ -429,6 +458,9 @@ export function Chat(): React.JSX.Element {
 								onRemoveAttachment={removeAttachment}
 								model={model}
 								onModelChange={setModel}
+								thinking={thinking}
+								onThinkingChange={setThinking}
+								thinkingSupported={thinkingSupported}
 							/>
 						</>
 					)}
@@ -470,6 +502,9 @@ export function Chat(): React.JSX.Element {
 					onRemoveAttachment={removeAttachment}
 					model={model}
 					onModelChange={setModel}
+					thinking={thinking}
+					onThinkingChange={setThinking}
+					thinkingSupported={thinkingSupported}
 				/>
 			</div>
 		</div>

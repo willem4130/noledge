@@ -13,6 +13,7 @@ import {
 	PromptInputTextarea,
 } from "@/components/prompt-kit/prompt-input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ModelPicker } from "./model-picker";
 import type { Attachment, ChatStatus } from "./types";
 
@@ -30,6 +31,10 @@ type ChatInputBarProps = {
 	onRemoveAttachment: (id: string) => void;
 	model: string | null;
 	onModelChange: (id: string) => void;
+	thinking: boolean;
+	onThinkingChange: (value: boolean) => void;
+	/** Whether the selected model supports a reasoning trace. */
+	thinkingSupported: boolean;
 };
 
 export function ChatInputBar({
@@ -43,6 +48,9 @@ export function ChatInputBar({
 	onRemoveAttachment,
 	model,
 	onModelChange,
+	thinking,
+	onThinkingChange,
+	thinkingSupported,
 }: ChatInputBarProps): React.JSX.Element {
 	const isBusy = status === "submitting" || status === "streaming";
 	const canSend = value.trim().length > 0 || attachments.length > 0;
@@ -113,6 +121,26 @@ export function ChatInputBar({
 							</Button>
 						</PromptInputAction>
 						<ModelPicker value={model} onChange={onModelChange} />
+						{thinkingSupported ? (
+							<PromptInputAction
+								tooltip={thinking ? "Thinking on" : "Thinking off"}
+							>
+								<Button
+									variant="ghost"
+									size="sm"
+									type="button"
+									aria-pressed={thinking}
+									onClick={() => onThinkingChange(!thinking)}
+									className={cn(
+										"gap-1.5",
+										thinking &&
+											"bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
+									)}
+								>
+									<span>Thinking</span>
+								</Button>
+							</PromptInputAction>
+						) : null}
 					</div>
 
 					<PromptInputAction tooltip={isBusy ? "Stop" : "Send"}>

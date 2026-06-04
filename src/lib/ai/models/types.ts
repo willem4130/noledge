@@ -13,6 +13,11 @@ export type ModelCatalogEntry = {
 	label: string;
 	/** Default model id for the provider (sent when no model is specified). */
 	default: boolean;
+	/**
+	 * Whether this model exposes a reasoning / thinking trace. When true the chat
+	 * route enables provider-specific reasoning and streams the trace to the UI.
+	 */
+	reasoning?: boolean;
 };
 
 /**
@@ -20,14 +25,27 @@ export type ModelCatalogEntry = {
  * provider ships a newer snapshot.
  */
 export const MODEL_CATALOG: readonly ModelCatalogEntry[] = [
-	{ id: "gpt-5.5", provider: "openai", label: "GPT-5.5", default: true },
+	{
+		id: "gpt-5.5",
+		provider: "openai",
+		label: "GPT-5.5",
+		default: true,
+		reasoning: true,
+	},
 	{
 		id: "claude-opus-4-8",
 		provider: "anthropic",
 		label: "Claude Opus 4.8",
 		default: true,
+		reasoning: true,
 	},
-	{ id: "kimi-k2.6", provider: "kimi", label: "Kimi K2.6", default: true },
+	{
+		id: "kimi-k2.6",
+		provider: "kimi",
+		label: "Kimi K2.6",
+		default: true,
+		reasoning: true,
+	},
 	{
 		id: "MiniMax-M3",
 		provider: "minimax",

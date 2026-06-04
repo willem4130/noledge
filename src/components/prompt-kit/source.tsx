@@ -62,8 +62,8 @@ export function SourceTrigger({
 				target="_blank"
 				rel="noopener noreferrer"
 				className={cn(
-					"bg-muted text-muted-foreground hover:bg-muted-foreground/30 hover:text-foreground inline-flex h-5 max-w-32 items-center gap-1 overflow-hidden rounded-full py-0 text-xs no-underline transition-colors duration-150",
-					showFavicon ? "pr-2 pl-1" : "px-1",
+					"inline-flex h-6 max-w-40 items-center gap-1 overflow-hidden rounded-full border border-border bg-secondary text-secondary-foreground no-underline transition-colors duration-150 hover:border-primary/40 hover:bg-accent hover:text-accent-foreground",
+					showFavicon ? "pr-2.5 pl-1" : "px-2.5",
 					className,
 				)}
 			>
@@ -78,7 +78,7 @@ export function SourceTrigger({
 						className="size-3.5 rounded-full"
 					/>
 				)}
-				<span className="truncate tabular-nums text-center font-normal">
+				<span className="truncate text-center text-xs font-medium">
 					{labelToShow}
 				</span>
 			</a>

@@ -6,6 +6,7 @@ export async function GET(): Promise<Response> {
 			id: entry.id,
 			label: entry.label,
 			provider: entry.provider,
+			reasoning: entry.reasoning ?? false,
 		})),
 		defaultModelId: defaultModelId() ?? null,
 	});

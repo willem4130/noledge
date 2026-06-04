@@ -20,6 +20,8 @@ const bodySchema = z.object({
 	messages: z.array(messageSchema).min(1),
 	model: z.string().optional(),
 	useRag: z.boolean().optional().default(true),
+	/** Enable the model's reasoning/thinking trace (only affects capable models). */
+	thinking: z.boolean().optional().default(true),
 });
 
 function partsToText(parts: { text: string }[]): string {
@@ -64,9 +66,9 @@ export async function POST(request: Request): Promise<Response> {
 		);
 	}
 
-	const { messages, model, useRag } = parsed.data;
+	const { messages, model, useRag, thinking } = parsed.data;
 
-	const resolved = resolveModel(model);
+	const resolved = resolveModel(model, { thinking });
 	if (!resolved.ok) {
 		return new Response(errorStream(resolved.error), {
 			headers: sseHeaders(),
@@ -77,12 +79,24 @@ export async function POST(request: Request): Promise<Response> {
 		async start(controller) {
 			const aborted = (): boolean => request.signal.aborted;
 			const emittedSources = new Set<string>();
+			// The model can emit text across multiple steps (e.g. a sentence before a
+			// tool call, then the real answer after the tool result). Those segments
+			// stream as separate `text-delta` parts and would otherwise be concatenated
+			// with no separation ("…searches.I can't see…"). Track segment boundaries
+			// so we can insert a paragraph break between them.
+			let emittedText = false;
+			let separatorPending = false;
+			// Reasoning streams as its own sequence of deltas; accumulate the same way
+			// and break between distinct reasoning segments (one per step).
+			let emittedReasoning = false;
+			let reasoningSeparatorPending = false;
 			try {
 				const result = streamText({
 					model: resolved.model,
 					system: buildToolSystemPrompt(),
 					messages: toModelMessages(messages),
 					tools: createKnowledgeTools(request.signal),
+					providerOptions: resolved.providerOptions,
 					// Grounding is enforced via the system prompt (always search before
 					// answering). We keep tool choice on "auto" rather than forcing a tool
 					// call, because reasoning models reject a forced tool_choice while
@@ -94,8 +108,30 @@ export async function POST(request: Request): Promise<Response> {
 
 				for await (const part of result.fullStream) {
 					if (aborted()) break;
+					if (part.type === "reasoning-start") {
+						if (emittedReasoning) reasoningSeparatorPending = true;
+						continue;
+					}
+					if (part.type === "reasoning-delta") {
+						if (part.text.length === 0) continue;
+						const text = reasoningSeparatorPending
+							? `\n\n${part.text}`
+							: part.text;
+						reasoningSeparatorPending = false;
+						emittedReasoning = true;
+						controller.enqueue(encodeChunk({ type: "reasoning", text }));
+						continue;
+					}
+					if (part.type === "text-start") {
+						if (emittedText) separatorPending = true;
+						continue;
+					}
 					if (part.type === "text-delta") {
-						controller.enqueue(encodeChunk({ type: "text", text: part.text }));
+						if (part.text.length === 0) continue;
+						const text = separatorPending ? `\n\n${part.text}` : part.text;
+						separatorPending = false;
+						emittedText = true;
+						controller.enqueue(encodeChunk({ type: "text", text }));
 						continue;
 					}
 					if (
