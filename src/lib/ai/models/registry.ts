@@ -3,7 +3,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import type { LanguageModel } from "ai";
-import { resolveProviderKey } from "./provider-config";
+import { resolveProviderCredential } from "./provider-config";
 import {
 	findModel,
 	MODEL_CATALOG,
@@ -12,6 +12,15 @@ import {
 	PROVIDER_IDS,
 	type ProviderId,
 } from "./types";
+
+const OPENAI_COMPATIBLE_BASE_URLS: Partial<Record<ProviderId, string>> = {
+	gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
+	kimi: "https://api.moonshot.ai/v1",
+	glm: "https://api.z.ai/api/coding/paas/v4",
+	xiaomi: "https://token-plan-sgp.xiaomimimo.com/v1",
+	deepseek: "https://api.deepseek.com/v1",
+	openrouter: "https://openrouter.ai/api/v1",
+};
 
 export type ResolveModelResult =
 	| {
@@ -26,16 +35,16 @@ export type ResolveModelResult =
 	  }
 	| { ok: false; error: string };
 
-/** Which providers have an API key configured (local or system). */
+/** Which providers have credentials configured (OAuth, local key, or system key). */
 function configuredProviders(): Set<ProviderId> {
 	const set = new Set<ProviderId>();
 	for (const provider of PROVIDER_IDS) {
-		if (resolveProviderKey(provider).key) set.add(provider);
+		if (resolveProviderCredential(provider).key) set.add(provider);
 	}
 	return set;
 }
 
-/** Catalog entries whose provider has a configured key. */
+/** Catalog entries whose provider has configured credentials. */
 export function availableModels(): ModelCatalogEntry[] {
 	const providers = configuredProviders();
 	return MODEL_CATALOG.filter((entry) => providers.has(entry.provider));
@@ -97,33 +106,70 @@ function reasoningProviderOptions(
 	}
 }
 
+function createOpenAICompatibleModel(
+	provider: ProviderId,
+	modelId: string,
+	apiKey: string | undefined,
+	baseURLOverride?: string,
+): LanguageModel {
+	const baseURL = baseURLOverride ?? OPENAI_COMPATIBLE_BASE_URLS[provider];
+	if (!baseURL) {
+		throw new Error(`Provider ${provider} is not OpenAI-compatible.`);
+	}
+	const compatible = createOpenAICompatible({
+		name: provider === "kimi" ? "moonshot" : provider,
+		baseURL,
+		...(apiKey ? { apiKey } : {}),
+		...(provider === "kimi" && baseURL.includes("api.kimi.com")
+			? { headers: { "User-Agent": "kimi-code-cli/1.0.11" } }
+			: {}),
+	});
+	return compatible(modelId);
+}
+
 function instantiate(entry: ModelCatalogEntry): LanguageModel {
-	const apiKey = resolveProviderKey(entry.provider).key;
+	const credential = resolveProviderCredential(entry.provider);
 	switch (entry.provider) {
 		case "openai": {
-			const openai = createOpenAI({ apiKey });
+			const openai = createOpenAI({
+				...(credential.key ? { apiKey: credential.key } : {}),
+				...(credential.baseURL ? { baseURL: credential.baseURL } : {}),
+			});
 			return openai(entry.id);
 		}
 		case "anthropic": {
-			const anthropic = createAnthropic({ apiKey });
+			const anthropic = createAnthropic(
+				credential.source === "oauth"
+					? {
+							...(credential.key ? { authToken: credential.key } : {}),
+							...(credential.baseURL ? { baseURL: credential.baseURL } : {}),
+						}
+					: {
+							...(credential.key ? { apiKey: credential.key } : {}),
+							...(credential.baseURL ? { baseURL: credential.baseURL } : {}),
+						},
+			);
 			return anthropic(entry.id);
 		}
-		case "kimi": {
-			const kimi = createOpenAICompatible({
-				name: "moonshot",
-				baseURL: "https://api.moonshot.ai/v1",
-				apiKey,
-			});
-			return kimi(entry.id);
-		}
 		case "minimax": {
-			const minimax = createOpenAICompatible({
-				name: "minimax",
-				baseURL: "https://api.minimax.io/v1",
-				apiKey,
+			const minimax = createAnthropic({
+				...(credential.key ? { apiKey: credential.key } : {}),
+				baseURL: credential.baseURL ?? "https://api.minimax.io/anthropic",
 			});
 			return minimax(entry.id);
 		}
+		case "gemini":
+		case "kimi":
+		case "glm":
+		case "xiaomi":
+		case "deepseek":
+		case "openrouter":
+			return createOpenAICompatibleModel(
+				entry.provider,
+				entry.id,
+				credential.key,
+				credential.baseURL,
+			);
 	}
 }
 

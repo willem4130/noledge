@@ -16,22 +16,31 @@ async function withTimeout(
 	}
 }
 
-/** OpenAI-style `GET /v1/models` with Bearer auth (OpenAI, Kimi). */
-async function checkOpenAiStyle(
+/** Probe an OpenAI-compatible `/chat/completions` endpoint with Bearer auth. */
+async function checkOpenAiCompatible(
 	baseURL: string,
 	apiKey: string,
+	model: string,
 ): Promise<ValidateResult> {
 	const response = await withTimeout((signal) =>
-		fetch(`${baseURL}/models`, {
-			headers: { Authorization: `Bearer ${apiKey}` },
+		fetch(`${baseURL}/chat/completions`, {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				model,
+				messages: [{ role: "user", content: "ping" }],
+				max_tokens: 1,
+			}),
 			signal,
 		}),
 	);
-	if (response.ok) return { ok: true };
 	if (response.status === 401 || response.status === 403) {
 		return { ok: false, error: "Invalid API key." };
 	}
-	return { ok: false, error: `Provider returned ${response.status}.` };
+	return { ok: true };
 }
 
 /** Anthropic `GET /v1/models` with `x-api-key` + version header. */
@@ -52,21 +61,22 @@ async function checkAnthropic(apiKey: string): Promise<ValidateResult> {
 	return { ok: false, error: `Provider returned ${response.status}.` };
 }
 
-/**
- * MiniMax has no `/models` endpoint, so probe the chat endpoint with a tiny
- * request. A 401/403 means the key is bad; any other status (including 400/429)
- * means auth succeeded.
- */
-async function checkMiniMax(apiKey: string): Promise<ValidateResult> {
+/** Probe an Anthropic-compatible `/messages` endpoint with a tiny request. */
+async function checkAnthropicCompatible(
+	baseURL: string,
+	apiKey: string,
+	model: string,
+): Promise<ValidateResult> {
 	const response = await withTimeout((signal) =>
-		fetch("https://api.minimax.io/v1/chat/completions", {
+		fetch(`${baseURL}/messages`, {
 			method: "POST",
 			headers: {
-				Authorization: `Bearer ${apiKey}`,
+				"x-api-key": apiKey,
+				"anthropic-version": "2023-06-01",
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify({
-				model: "MiniMax-M3",
+				model,
 				messages: [{ role: "user", content: "ping" }],
 				max_tokens: 1,
 			}),
@@ -94,13 +104,55 @@ export async function validateProviderKey(
 	try {
 		switch (provider) {
 			case "openai":
-				return await checkOpenAiStyle("https://api.openai.com/v1", apiKey);
+				return await checkOpenAiCompatible(
+					"https://api.openai.com/v1",
+					apiKey,
+					"gpt-5.5",
+				);
+			case "gemini":
+				return await checkOpenAiCompatible(
+					"https://generativelanguage.googleapis.com/v1beta/openai",
+					apiKey,
+					"gemini-3.1-flash-lite-preview",
+				);
 			case "kimi":
-				return await checkOpenAiStyle("https://api.moonshot.ai/v1", apiKey);
+				return await checkOpenAiCompatible(
+					"https://api.moonshot.ai/v1",
+					apiKey,
+					"kimi-k2.6",
+				);
+			case "glm":
+				return await checkOpenAiCompatible(
+					"https://api.z.ai/api/coding/paas/v4",
+					apiKey,
+					"glm-5.1",
+				);
+			case "xiaomi":
+				return await checkOpenAiCompatible(
+					"https://token-plan-sgp.xiaomimimo.com/v1",
+					apiKey,
+					"mimo-v2.5-pro",
+				);
+			case "deepseek":
+				return await checkOpenAiCompatible(
+					"https://api.deepseek.com/v1",
+					apiKey,
+					"deepseek-v4-pro",
+				);
+			case "openrouter":
+				return await checkOpenAiCompatible(
+					"https://openrouter.ai/api/v1",
+					apiKey,
+					"qwen/qwen3.6-plus",
+				);
 			case "anthropic":
 				return await checkAnthropic(apiKey);
 			case "minimax":
-				return await checkMiniMax(apiKey);
+				return await checkAnthropicCompatible(
+					"https://api.minimax.io/anthropic",
+					apiKey,
+					"MiniMax-M3",
+				);
 		}
 	} catch (error) {
 		if (error instanceof DOMException && error.name === "AbortError") {

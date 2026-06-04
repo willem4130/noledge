@@ -3,8 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const KEYS = [
 	"OPENAI_API_KEY",
 	"ANTHROPIC_API_KEY",
+	"GEMINI_API_KEY",
 	"MOONSHOT_API_KEY",
+	"GLM_API_KEY",
 	"MINIMAX_API_KEY",
+	"XIAOMI_API_KEY",
+	"DEEPSEEK_API_KEY",
+	"OPENROUTER_API_KEY",
 ] as const;
 
 const original: Record<string, string | undefined> = {};
@@ -105,14 +110,14 @@ describe("model registry", () => {
 	it("reports vision support per model", async () => {
 		for (const key of KEYS) delete process.env[key];
 		process.env.OPENAI_API_KEY = "sk-test";
-		process.env.MINIMAX_API_KEY = "sk-minimax-test";
+		process.env.GLM_API_KEY = "sk-glm-test";
 		const { resolveModel } = await loadRegistry();
 
 		const gpt = resolveModel("gpt-5.5");
 		expect(gpt.ok && gpt.supportsVision).toBe(true);
 
-		const minimax = resolveModel("MiniMax-M3");
-		expect(minimax.ok && minimax.supportsVision).toBe(false);
+		const glm = resolveModel("glm-5.1");
+		expect(glm.ok && glm.supportsVision).toBe(false);
 	});
 
 	it("errors for an unknown model id", async () => {
@@ -128,5 +133,17 @@ describe("model registry", () => {
 		const { resolveModel } = await loadRegistry();
 		const result = resolveModel("claude-opus-4-8");
 		expect(result.ok).toBe(false);
+	});
+
+	it("includes the extended gg-coder model catalog", async () => {
+		for (const key of KEYS) process.env[key] = "test-key";
+		const { availableModels } = await loadRegistry();
+		const modelIds = new Set(availableModels().map((m) => m.id));
+
+		expect(modelIds).toContain("gemini-3.1-flash-lite-preview");
+		expect(modelIds).toContain("glm-5.1");
+		expect(modelIds).toContain("mimo-v2.5-pro");
+		expect(modelIds).toContain("deepseek-v4-pro");
+		expect(modelIds).toContain("qwen/qwen3.6-plus");
 	});
 });

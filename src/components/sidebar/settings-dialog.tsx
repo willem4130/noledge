@@ -66,7 +66,7 @@ export function SettingsDialog({
 				<DialogDescription className="sr-only">
 					Manage your general, provider, and account settings.
 				</DialogDescription>
-				<div className="flex h-full">
+				<div className="flex h-full min-h-0">
 					{/* Left sidebar */}
 					<aside className="flex w-52 flex-col border-r py-4">
 						<nav className="flex flex-1 flex-col gap-1 px-3">
@@ -90,8 +90,8 @@ export function SettingsDialog({
 					</aside>
 
 					{/* Right panel */}
-					<div className="flex flex-1 flex-col overflow-hidden">
-						<div className="flex-1 overflow-y-auto">
+					<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+						<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 							{activeTab === "general" && (
 								<div className="p-6">
 									<h2 className="mb-6 text-lg font-semibold">General</h2>

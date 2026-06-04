@@ -12,8 +12,13 @@ import { z } from "zod";
 const envSchema = z.object({
 	OPENAI_API_KEY: z.string().min(1).optional(),
 	ANTHROPIC_API_KEY: z.string().min(1).optional(),
+	GEMINI_API_KEY: z.string().min(1).optional(),
 	MOONSHOT_API_KEY: z.string().min(1).optional(),
+	GLM_API_KEY: z.string().min(1).optional(),
 	MINIMAX_API_KEY: z.string().min(1).optional(),
+	XIAOMI_API_KEY: z.string().min(1).optional(),
+	DEEPSEEK_API_KEY: z.string().min(1).optional(),
+	OPENROUTER_API_KEY: z.string().min(1).optional(),
 	OCR_ENABLED: z
 		.enum(["true", "false"])
 		.default("true")
@@ -34,8 +39,13 @@ export function getEnv(): AiEnv {
 	const parsed = envSchema.parse({
 		OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 		ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+		GEMINI_API_KEY: process.env.GEMINI_API_KEY,
 		MOONSHOT_API_KEY: process.env.MOONSHOT_API_KEY,
+		GLM_API_KEY: process.env.GLM_API_KEY,
 		MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
+		XIAOMI_API_KEY: process.env.XIAOMI_API_KEY,
+		DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+		OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
 		OCR_ENABLED: process.env.OCR_ENABLED,
 		OCR_LANGUAGE: process.env.OCR_LANGUAGE,
 	});

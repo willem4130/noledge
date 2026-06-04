@@ -56,6 +56,25 @@ describe("resolveProviderKey", () => {
 		const result = resolveProviderKey("openai");
 		expect(result.source).toBe("system");
 	});
+
+	it("prefers OAuth over local and system keys for chat credentials", async () => {
+		process.env.OPENAI_API_KEY = "sk-system";
+		const {
+			resolveProviderCredential,
+			saveProviderKey,
+			saveProviderOAuthCredential,
+		} = await load();
+		saveProviderKey("openai", "sk-local");
+		saveProviderOAuthCredential("openai", {
+			accessToken: "oauth-token",
+			baseURL: "https://example.test/v1",
+		});
+
+		const result = resolveProviderCredential("openai");
+		expect(result.source).toBe("oauth");
+		expect(result.key).toBe("oauth-token");
+		expect(result.baseURL).toBe("https://example.test/v1");
+	});
 });
 
 describe("maskKey", () => {

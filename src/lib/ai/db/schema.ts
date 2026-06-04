@@ -44,6 +44,25 @@ export function migrate(db: Database): void {
 			created_at INTEGER NOT NULL
 		);
 
+		CREATE TABLE IF NOT EXISTS provider_oauth_credentials (
+			provider      TEXT PRIMARY KEY,
+			access_token  TEXT NOT NULL,
+			refresh_token TEXT,
+			expires_at    INTEGER,
+			base_url      TEXT,
+			created_at    INTEGER NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS provider_oauth_states (
+			id          TEXT PRIMARY KEY,
+			provider    TEXT NOT NULL,
+			state       TEXT,
+			verifier    TEXT,
+			device_code TEXT,
+			expires_at  INTEGER NOT NULL,
+			created_at  INTEGER NOT NULL
+		);
+
 		CREATE TABLE IF NOT EXISTS conversations (
 			id         TEXT PRIMARY KEY,
 			title      TEXT NOT NULL,

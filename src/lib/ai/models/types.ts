@@ -4,7 +4,17 @@
  * string literals across routes.
  */
 
-export const PROVIDER_IDS = ["openai", "anthropic", "kimi", "minimax"] as const;
+export const PROVIDER_IDS = [
+	"anthropic",
+	"openai",
+	"gemini",
+	"kimi",
+	"glm",
+	"minimax",
+	"xiaomi",
+	"deepseek",
+	"openrouter",
+] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export type ModelCatalogEntry = {
@@ -31,6 +41,32 @@ export type ModelCatalogEntry = {
  * provider ships a newer snapshot.
  */
 export const MODEL_CATALOG: readonly ModelCatalogEntry[] = [
+	// Anthropic
+	{
+		id: "claude-opus-4-8",
+		provider: "anthropic",
+		label: "Claude Opus 4.8",
+		default: true,
+		reasoning: true,
+		vision: true,
+	},
+	{
+		id: "claude-sonnet-4-6",
+		provider: "anthropic",
+		label: "Claude Sonnet 4.6",
+		default: false,
+		reasoning: true,
+		vision: true,
+	},
+	{
+		id: "claude-haiku-4-5-20251001",
+		provider: "anthropic",
+		label: "Claude Haiku 4.5",
+		default: false,
+		reasoning: true,
+		vision: true,
+	},
+	// OpenAI / Codex family
 	{
 		id: "gpt-5.5",
 		provider: "openai",
@@ -40,13 +76,47 @@ export const MODEL_CATALOG: readonly ModelCatalogEntry[] = [
 		vision: true,
 	},
 	{
-		id: "claude-opus-4-8",
-		provider: "anthropic",
-		label: "Claude Opus 4.8",
+		id: "gpt-5.4",
+		provider: "openai",
+		label: "GPT-5.4",
+		default: false,
+		reasoning: true,
+		vision: true,
+	},
+	{
+		id: "gpt-5.4-mini",
+		provider: "openai",
+		label: "GPT-5.4 Mini",
+		default: false,
+		reasoning: true,
+		vision: true,
+	},
+	{
+		id: "gpt-5.3-codex",
+		provider: "openai",
+		label: "GPT-5.3 Codex",
+		default: false,
+		reasoning: true,
+		vision: true,
+	},
+	// Gemini (OpenAI-compatible endpoint)
+	{
+		id: "gemini-3.1-flash-lite-preview",
+		provider: "gemini",
+		label: "Gemini 3.1 Flash Lite Preview",
 		default: true,
 		reasoning: true,
 		vision: true,
 	},
+	{
+		id: "gemini-3.5-flash",
+		provider: "gemini",
+		label: "Gemini 3.5 Flash",
+		default: false,
+		reasoning: true,
+		vision: true,
+	},
+	// Moonshot (Kimi)
 	{
 		id: "kimi-k2.6",
 		provider: "kimi",
@@ -57,13 +127,75 @@ export const MODEL_CATALOG: readonly ModelCatalogEntry[] = [
 		// API accepts image inputs as `image_url` content parts.
 		vision: true,
 	},
+	// Z.AI (GLM)
 	{
-		// Text-only: the MiniMax M-series ships no image input on its API, so image
-		// attachments are OCR'd to text rather than forwarded as native image parts.
+		id: "glm-5.1",
+		provider: "glm",
+		label: "GLM-5.1",
+		default: true,
+		reasoning: true,
+	},
+	{
+		id: "glm-4.7",
+		provider: "glm",
+		label: "GLM-4.7",
+		default: false,
+		reasoning: true,
+	},
+	{
+		id: "glm-4.7-flash",
+		provider: "glm",
+		label: "GLM-4.7 Flash",
+		default: false,
+		reasoning: true,
+	},
+	// MiniMax
+	{
 		id: "MiniMax-M3",
 		provider: "minimax",
 		label: "MiniMax M3",
 		default: true,
+		reasoning: true,
+		vision: true,
+	},
+	// Xiaomi (MiMo)
+	{
+		id: "mimo-v2.5-pro",
+		provider: "xiaomi",
+		label: "MiMo-V2.5-Pro",
+		default: true,
+		reasoning: true,
+	},
+	{
+		id: "mimo-v2.5",
+		provider: "xiaomi",
+		label: "MiMo-V2.5",
+		default: false,
+		reasoning: true,
+		vision: true,
+	},
+	// DeepSeek
+	{
+		id: "deepseek-v4-pro",
+		provider: "deepseek",
+		label: "DeepSeek V4 Pro",
+		default: true,
+		reasoning: true,
+	},
+	{
+		id: "deepseek-v4-flash",
+		provider: "deepseek",
+		label: "DeepSeek V4 Flash",
+		default: false,
+		reasoning: true,
+	},
+	// OpenRouter
+	{
+		id: "qwen/qwen3.6-plus",
+		provider: "openrouter",
+		label: "Qwen3.6-Plus",
+		default: true,
+		reasoning: true,
 	},
 ] as const;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CircleNotch, Plus, Trash, X } from "@phosphor-icons/react";
+import { Check, CircleNotch, Key, Plus, Trash, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,26 @@ type ProviderStatus = {
 	label: string;
 	hint: string;
 	envVar: string;
+	oauth: boolean;
 	connected: boolean;
-	source: "system" | "local" | "none";
+	source: "oauth" | "system" | "local" | "none";
 	maskedKey: string | null;
 };
 
 type DraftState = {
 	value: string;
+	saving: boolean;
+	error: string | null;
+};
+
+type OAuthState = {
+	provider: string;
+	stateId: string;
+	mode: "code" | "device";
+	url: string;
+	instructions: string;
+	code: string;
+	userCode?: string;
 	saving: boolean;
 	error: string | null;
 };
@@ -33,6 +46,7 @@ export function ProvidersSection(): React.JSX.Element {
 	const [editing, setEditing] = useState<string | null>(null);
 	const [drafts, setDrafts] = useState<Record<string, DraftState>>({});
 	const [removing, setRemoving] = useState<string | null>(null);
+	const [oauth, setOauth] = useState<OAuthState | null>(null);
 
 	const load = useCallback(async (): Promise<void> => {
 		try {
@@ -116,6 +130,118 @@ export function ProvidersSection(): React.JSX.Element {
 		[drafts, setDraft],
 	);
 
+	const startOAuth = useCallback(async (id: string): Promise<void> => {
+		setOauth(null);
+		try {
+			const response = await fetch("/api/providers/oauth/start", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ provider: id }),
+			});
+			const data = (await response.json()) as
+				| {
+						ok: true;
+						mode: "code";
+						stateId: string;
+						authUrl: string;
+						instructions: string;
+				  }
+				| {
+						ok: true;
+						mode: "device";
+						stateId: string;
+						verificationUri: string;
+						verificationUriComplete: string;
+						userCode: string;
+				  }
+				| { ok: false; error?: string };
+			if (!response.ok || !data.ok) {
+				setOauth({
+					provider: id,
+					stateId: "",
+					mode: "code",
+					url: "",
+					instructions: "",
+					code: "",
+					saving: false,
+					error: data.ok
+						? "Could not start OAuth login."
+						: (data.error ?? "Could not start OAuth login."),
+				});
+				return;
+			}
+			const url =
+				data.mode === "code" ? data.authUrl : data.verificationUriComplete;
+			window.open(url, "_blank", "noopener,noreferrer");
+			setOauth({
+				provider: id,
+				stateId: data.stateId,
+				mode: data.mode,
+				url,
+				instructions:
+					data.mode === "code"
+						? data.instructions
+						: "Sign in with Kimi using the code below, then click Complete.",
+				code: "",
+				...(data.mode === "device" ? { userCode: data.userCode } : {}),
+				saving: false,
+				error: null,
+			});
+		} catch (error) {
+			setOauth({
+				provider: id,
+				stateId: "",
+				mode: "code",
+				url: "",
+				instructions: "",
+				code: "",
+				saving: false,
+				error:
+					error instanceof Error
+						? error.message
+						: "Could not start OAuth login.",
+			});
+		}
+	}, []);
+
+	const completeOAuth = useCallback(async (): Promise<void> => {
+		if (!oauth?.stateId) return;
+		setOauth((prev) => (prev ? { ...prev, saving: true, error: null } : prev));
+		try {
+			const response = await fetch("/api/providers/oauth/complete", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ stateId: oauth.stateId, input: oauth.code }),
+			});
+			const data = (await response.json()) as { ok?: boolean; error?: string };
+			if (response.ok && data.ok) {
+				setOauth(null);
+				await load();
+				return;
+			}
+			setOauth((prev) =>
+				prev
+					? {
+							...prev,
+							saving: false,
+							error: data.error ?? "OAuth login failed.",
+						}
+					: prev,
+			);
+		} catch (error) {
+			setOauth((prev) =>
+				prev
+					? {
+							...prev,
+							saving: false,
+							error:
+								error instanceof Error ? error.message : "OAuth login failed.",
+						}
+					: prev,
+			);
+		}
+	}, [load, oauth]);
+
 	const remove = useCallback(async (id: string): Promise<void> => {
 		setRemoving(id);
 		try {
@@ -139,8 +265,8 @@ export function ProvidersSection(): React.JSX.Element {
 	return (
 		<div className="space-y-4">
 			<p className="text-xs text-muted-foreground">
-				Connect API keys to enable models. Keys are stored locally on this
-				device.
+				Connect a provider with OAuth or an API key. OAuth is used first when
+				both are available.
 			</p>
 
 			{loading ? (
@@ -174,27 +300,51 @@ export function ProvidersSection(): React.JSX.Element {
 													<span
 														className={cn(
 															"rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-															provider.source === "system"
-																? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-																: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+															provider.source === "oauth"
+																? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+																: provider.source === "system"
+																	? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+																	: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
 														)}
 													>
-														{provider.source === "system"
-															? "System"
-															: "Connected"}
+														{provider.source === "oauth"
+															? "OAuth"
+															: provider.source === "system"
+																? "System"
+																: "Connected"}
 													</span>
 												) : null}
 											</div>
-											<p className="truncate text-xs text-muted-foreground">
-												{provider.connected && provider.maskedKey
-													? provider.maskedKey
-													: provider.hint}
-											</p>
+											{provider.connected && provider.maskedKey ? (
+												<p className="truncate text-xs text-muted-foreground">
+													{provider.maskedKey}
+												</p>
+											) : (
+												<a
+													href={provider.hint}
+													target="_blank"
+													rel="noreferrer"
+													className="block truncate text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+												>
+													{provider.hint}
+												</a>
+											)}
 										</div>
 									</div>
 
 									{!isEditing ? (
 										<div className="flex shrink-0 items-center gap-1">
+											{provider.oauth ? (
+												<Button
+													variant="outline"
+													size="sm"
+													type="button"
+													onClick={() => void startOAuth(provider.id)}
+												>
+													<Key className="size-3.5" />
+													Login
+												</Button>
+											) : null}
 											{provider.source === "local" ? (
 												<Button
 													variant="ghost"
@@ -231,8 +381,72 @@ export function ProvidersSection(): React.JSX.Element {
 									) : null}
 								</div>
 
+								{oauth?.provider === provider.id ? (
+									<div className="mt-2.5 mb-4 space-y-2 rounded-lg border bg-muted/20 p-3">
+										<p className="text-xs text-muted-foreground">
+											{oauth.instructions}{" "}
+											{oauth.userCode ? `Code: ${oauth.userCode}` : ""}
+										</p>
+										<a
+											href={oauth.url}
+											target="_blank"
+											rel="noreferrer"
+											className="block truncate text-xs text-primary underline-offset-2 hover:underline"
+										>
+											Open login page
+										</a>
+										{oauth.mode === "code" ? (
+											<Input
+												value={oauth.code}
+												placeholder="Paste OAuth code or callback URL"
+												disabled={oauth.saving}
+												onChange={(event) =>
+													setOauth((prev) =>
+														prev
+															? {
+																	...prev,
+																	code: event.target.value,
+																	error: null,
+																}
+															: prev,
+													)
+												}
+											/>
+										) : null}
+										<div className="flex justify-end gap-2">
+											<Button
+												variant="ghost"
+												size="sm"
+												type="button"
+												disabled={oauth.saving}
+												onClick={() => setOauth(null)}
+											>
+												Cancel
+											</Button>
+											<Button
+												size="sm"
+												type="button"
+												disabled={
+													oauth.saving ||
+													(oauth.mode === "code" &&
+														oauth.code.trim().length === 0)
+												}
+												onClick={() => void completeOAuth()}
+											>
+												{oauth.saving ? (
+													<CircleNotch className="size-4 animate-spin" />
+												) : null}
+												Complete login
+											</Button>
+										</div>
+										{oauth.error ? (
+											<p className="text-xs text-destructive">{oauth.error}</p>
+										) : null}
+									</div>
+								) : null}
+
 								{isEditing ? (
-									<div className="mt-2.5 space-y-2">
+									<div className="mt-2.5 mb-4 space-y-2">
 										<div className="flex items-center gap-2">
 											<Input
 												type="password"
@@ -279,11 +493,7 @@ export function ProvidersSection(): React.JSX.Element {
 										</div>
 										{draft.error ? (
 											<p className="text-xs text-destructive">{draft.error}</p>
-										) : (
-											<p className="text-xs text-muted-foreground">
-												Validated against the provider before saving.
-											</p>
-										)}
+										) : null}
 									</div>
 								) : null}
 							</li>

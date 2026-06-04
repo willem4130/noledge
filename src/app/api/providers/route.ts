@@ -3,7 +3,7 @@ import {
 	deleteProviderKey,
 	maskKey,
 	PROVIDER_META,
-	resolveProviderKey,
+	resolveProviderCredential,
 	saveProviderKey,
 } from "@/lib/ai/models/provider-config";
 import { PROVIDER_IDS, type ProviderId } from "@/lib/ai/models/types";
@@ -14,19 +14,21 @@ type ProviderStatus = {
 	label: string;
 	hint: string;
 	envVar: string;
+	oauth: boolean;
 	connected: boolean;
-	source: "system" | "local" | "none";
+	source: "oauth" | "system" | "local" | "none";
 	maskedKey: string | null;
 };
 
 function statusFor(id: ProviderId): ProviderStatus {
 	const meta = PROVIDER_META[id];
-	const { key, source } = resolveProviderKey(id);
+	const { key, source } = resolveProviderCredential(id);
 	return {
 		id,
 		label: meta.label,
 		hint: meta.hint,
 		envVar: meta.envVar,
+		oauth: meta.oauth ?? false,
 		connected: Boolean(key),
 		source,
 		maskedKey: key ? maskKey(key) : null,
