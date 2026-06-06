@@ -92,23 +92,19 @@ npm install
 
 **3. Add at least one AI key**
 
-Make a file called `.env.local` in the project folder and put your key(s) in it. You need an OpenAI key (it powers the "memory" part), plus any others you want to chat with:
-
-```
-OPENAI_API_KEY=your-openai-key-here
-ANTHROPIC_API_KEY=your-claude-key-here
-GEMINI_API_KEY=your-gemini-key-here
-```
-
-Get an OpenAI key at [platform.openai.com](https://platform.openai.com/api-keys). The rest are optional, add only the ones you want.
-
-**4. Start it up**
+**3. Start it up**
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser. That's it. Start dumping in your stuff and asking questions.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+**4. Add your AI key(s) in the app**
+
+Look for the Providers section in the sidebar, click to add a key, and paste it in. You'll want an OpenAI key (it powers the "memory" part), plus any others you'd like to chat with, like Claude or Gemini. Get an OpenAI key at [platform.openai.com](https://platform.openai.com/api-keys). The rest are optional, add only the ones you want.
+
+That's it. Start dumping in your stuff and asking questions.
 
 ---
 
@@ -122,14 +118,14 @@ Open [http://localhost:3000](http://localhost:3000) in your browser. That's it. 
 
 ## Community
 
-- [YouTube @kenkaidoesai](https://youtube.com/@kenkaidoesai) — tutorials and demos
-- [Skool community](https://skool.com/kenkai) — come hang out and build with us
+- [YouTube @kenkaidoesai](https://youtube.com/@kenkaidoesai) - tutorials and demos
+- [Skool community](https://skool.com/kenkai) - come hang out and build with us
 
 ---
 
 ## License
 
-MIT — do whatever you want with it.
+MIT. Do whatever you want with it.
 
 ---
 
