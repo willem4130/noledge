@@ -68,6 +68,9 @@ Tell Noledge to keep an eye on things for you. Point it at your favorite blogs, 
 ### Bring your own AI
 Works with all the big AI providers (OpenAI, Anthropic/Claude, Google Gemini, DeepSeek, and more). Use whichever one you already pay for, or mix and match.
 
+### Make it talk like you want
+In Settings you can tell Noledge a bit about yourself, write your own instructions for how it should behave, and pick a response style (straight to the point, or explain-it-simply). So the answers come out the way *you* like them.
+
 ### It's all yours
 Everything lives on your own computer in a single file. No cloud account, no subscription to Noledge, no one snooping on your notes.
 
@@ -100,7 +103,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 **4. Add your AI key(s) in the app**
 
-Look for the Providers section in the sidebar, click to add a key, and paste it in. You'll want an OpenAI key (it powers the "memory" part), plus any others you'd like to chat with, like Claude or Gemini. Get an OpenAI key at [platform.openai.com](https://platform.openai.com/api-keys). The rest are optional, add only the ones you want.
+Open **Settings** (in the sidebar) and go to the **Providers** tab. Click to add a key and paste it in. You'll want an OpenAI key (it powers the "memory" part), plus any others you'd like to chat with, like Claude or Gemini. Get an OpenAI key at [platform.openai.com](https://platform.openai.com/api-keys). The rest are optional, add only the ones you want.
 
 That's it. Start dumping in your stuff and asking questions.
 
