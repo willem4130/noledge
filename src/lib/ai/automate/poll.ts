@@ -7,6 +7,7 @@ import type { Embedder } from "@/lib/ai/rag/ingest";
 import { ingestText } from "@/lib/ai/rag/ingest";
 import { getPaperProvider, isPaperType } from "./papers";
 import { httpBinary } from "./papers/http";
+import { fetchArticleText } from "./rss/article";
 import { fetchFeed } from "./rss/parse";
 import {
 	type AutomationSource,
@@ -50,6 +51,14 @@ const defaultYoutubeDeps: YoutubeDeps = {
 
 /** Max recent items considered per source per poll (bounds embedding cost). */
 const MAX_ITEMS_PER_SOURCE = 10;
+
+/**
+ * Feed bodies shorter than this (in characters) are treated as teasers/excerpts
+ * and the poller tries to fetch the full article from the item link. The bound
+ * sits just under a single chunk's capacity (~400 tokens ≈ 1600 chars), so any
+ * item that would otherwise embed into one near-empty chunk is enriched.
+ */
+const THIN_FEED_BODY_CHARS = 1500;
 
 /** Spacing between arXiv API requests to respect its rate limits. */
 const ARXIV_REQUEST_DELAY_MS = 3_000;
@@ -184,7 +193,19 @@ async function pollRssSource(
 			result.skipped += 1;
 			continue;
 		}
-		const text = item.content.trim();
+		let text = item.content.trim();
+		// Enrich teaser/summary-only feeds: fetch the canonical article and extract
+		// its main prose. Keep the enriched text only when it yields more than the
+		// feed body, so full-content feeds and genuinely short posts are untouched.
+		if (item.link && text.length < THIN_FEED_BODY_CHARS) {
+			const article = await fetchArticleText(item.link, {
+				fetchFn: deps.fetchFn,
+				signal: deps.signal,
+			});
+			if (article.ok && article.text.length > text.length) {
+				text = article.text;
+			}
+		}
 		if (text.length === 0) {
 			result.skipped += 1;
 			continue;
@@ -252,6 +273,11 @@ async function pollPaperSource(
 		return result;
 	}
 
+	// Count new items whose full text couldn't be fetched (e.g. paywalled, or a
+	// PDF host behind a bot challenge). If a source lists fresh items but none are
+	// ingestable, that's reported as `partial` rather than a silent green `ok`.
+	let unfetched = 0;
+
 	for (const item of listed.items) {
 		if (item.externalId.length === 0 || item.abstract.length === 0) {
 			result.skipped += 1;
@@ -265,6 +291,7 @@ async function pollPaperSource(
 		const payload = await paperIngestPayload(item, deps.signal);
 		if (!payload.ok) {
 			result.skipped += 1;
+			unfetched += 1;
 			result.error = payload.reason;
 			continue;
 		}
@@ -289,6 +316,14 @@ async function pollPaperSource(
 			result.status = result.added > 0 ? "partial" : "error";
 			result.error = ingested.error;
 		}
+	}
+
+	// Listed fresh items but couldn't fetch full text for any of them: surface it
+	// instead of masquerading as a healthy poll. (When `added > 0`, a mix is
+	// expected and the successful items stand on their own.)
+	if (result.status === "ok" && result.added === 0 && unfetched > 0) {
+		result.status = "partial";
+		result.error ??= "No full text could be fetched for new items.";
 	}
 
 	return result;

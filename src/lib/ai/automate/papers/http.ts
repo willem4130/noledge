@@ -6,8 +6,13 @@
  * keep `papers/index.ts` free of a provider↔index import cycle.
  */
 
+import { type Attempt, isTransientStatus, withRetry } from "../retry";
+
 const USER_AGENT = "noledge-automation/1.0 (+paper-poller)";
 const FETCH_TIMEOUT_MS = 20_000;
+
+/** Internal sentinel: the caller's signal cancelled the request — never retry. */
+const CALLER_ABORTED = "Request aborted.";
 
 export type HttpTextResult =
 	| { ok: true; status: number; body: string }
@@ -19,10 +24,29 @@ export type HttpBinaryResult =
 
 const MAX_BINARY_BYTES = 40 * 1024 * 1024;
 
+/** Whether an HTTP result is worth another attempt. */
+function retryHttp<
+	T extends { ok: true; status: number } | { ok: false; error: string },
+>(result: T): Attempt<T> {
+	const retry = result.ok
+		? isTransientStatus(result.status)
+		: result.error !== CALLER_ABORTED;
+	return { value: result, retry };
+}
+
 /** Fetch a URL as text. Network/timeout failures return a `Result`. */
 export async function httpText(
 	url: string,
 	options: { accept?: string; signal?: AbortSignal } = {},
+): Promise<HttpTextResult> {
+	return withRetry(async () => retryHttp(await httpTextOnce(url, options)), {
+		signal: options.signal,
+	});
+}
+
+async function httpTextOnce(
+	url: string,
+	options: { accept?: string; signal?: AbortSignal },
 ): Promise<HttpTextResult> {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -44,6 +68,10 @@ export async function httpText(
 		return { ok: true, status: response.status, body };
 	} catch (error) {
 		if (error instanceof DOMException && error.name === "AbortError") {
+			// Distinguish a caller cancellation (don't retry) from our own timeout.
+			if (options.signal?.aborted) {
+				return { ok: false, error: CALLER_ABORTED };
+			}
 			return { ok: false, error: "Request timed out." };
 		}
 		return {
@@ -59,6 +87,15 @@ export async function httpText(
 export async function httpBinary(
 	url: string,
 	options: { accept?: string; signal?: AbortSignal } = {},
+): Promise<HttpBinaryResult> {
+	return withRetry(async () => retryHttp(await httpBinaryOnce(url, options)), {
+		signal: options.signal,
+	});
+}
+
+async function httpBinaryOnce(
+	url: string,
+	options: { accept?: string; signal?: AbortSignal },
 ): Promise<HttpBinaryResult> {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -92,6 +129,9 @@ export async function httpBinary(
 		};
 	} catch (error) {
 		if (error instanceof DOMException && error.name === "AbortError") {
+			if (options.signal?.aborted) {
+				return { ok: false, error: CALLER_ABORTED };
+			}
 			return { ok: false, error: "Request timed out." };
 		}
 		return {

@@ -28,6 +28,42 @@ const RSS_BODY = `<?xml version="1.0"?>
 	<item><title>Post Two</title><link>https://b.example/2</link><guid>g-2</guid><description>Body two about dogs.</description></item>
 </channel></rss>`;
 
+/** A full article page: long enough to chunk into several pieces, wrapped in
+ * site boilerplate that Readability should strip. */
+function articleHtml(topic: string): string {
+	const paragraph = `This is a detailed paragraph about ${topic}. `.repeat(40);
+	return `<!doctype html><html><head><title>${topic}</title></head><body>
+		<nav>Home About Contact Subscribe Newsletter</nav>
+		<header>Site banner and navigation junk</header>
+		<article><h1>${topic}</h1>
+			<p>${paragraph}</p>
+			<p>${paragraph}</p>
+			<p>${paragraph}</p>
+		</article>
+		<footer>Copyright cookie notice social links</footer>
+	</body></html>`;
+}
+
+/** Route fetches: feed URL returns the RSS XML, article links return full HTML. */
+function routedFetch(): typeof fetch {
+	return vi.fn(async (input: string | URL | Request) => {
+		const url = String(input);
+		if (url.endsWith("/1")) {
+			return new Response(articleHtml("cats"), {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+		}
+		if (url.endsWith("/2")) {
+			return new Response(articleHtml("dogs"), {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+		}
+		return new Response(RSS_BODY, { status: 200 });
+	}) as unknown as typeof fetch;
+}
+
 describe("runPoll (RSS)", () => {
 	it("ingests new feed items and dedups on a second run", async () => {
 		db = openDatabase(":memory:");
@@ -36,7 +72,7 @@ describe("runPoll (RSS)", () => {
 			db,
 		);
 
-		const fetchFn = vi.fn(async () => new Response(RSS_BODY, { status: 200 }));
+		const fetchFn = routedFetch();
 
 		const first = await runPoll({ db, embedder, fetchFn });
 		expect(first.added).toBe(2);
@@ -44,8 +80,26 @@ describe("runPoll (RSS)", () => {
 		expect(first.errors).toBe(0);
 		expect(documentExists(source.id, "g-1", db)).toBe(true);
 
+		// Thin feed bodies were enriched from the article pages: each document
+		// chunks into several pieces rather than a single near-empty chunk, and the
+		// nav/footer boilerplate is stripped.
+		const rows = db
+			.prepare(
+				`SELECT d.external_id AS externalId, COUNT(c.id) AS chunks,
+					GROUP_CONCAT(c.content, ' ') AS body
+				FROM documents d JOIN chunks c ON c.document_id = d.id
+				GROUP BY d.id`,
+			)
+			.all() as { externalId: string; chunks: number; body: string }[];
+		expect(rows).toHaveLength(2);
+		for (const row of rows) {
+			expect(row.chunks).toBeGreaterThan(1);
+			expect(row.body).not.toContain("cookie notice");
+			expect(row.body).not.toContain("navigation junk");
+		}
+
 		// Second poll: same items are all skipped, nothing re-ingested.
-		const second = await runPoll({ db, embedder, fetchFn });
+		const second = await runPoll({ db, embedder, fetchFn: routedFetch() });
 		expect(second.added).toBe(0);
 		expect(second.skipped).toBe(2);
 	});

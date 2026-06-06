@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { parseFeed } from "./parse";
+import { describe, expect, it, vi } from "vitest";
+import { fetchFeed, parseFeed } from "./parse";
 
 const RSS_SAMPLE = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
@@ -94,5 +94,31 @@ describe("parseFeed (Atom)", () => {
 		expect(entry?.link).toBe("https://example.org/atom-one");
 		expect(entry?.content).toContain("Body of the entry");
 		expect(entry?.publishedAt).toBe(Date.parse("2025-06-01T12:30:00Z"));
+	});
+});
+
+describe("fetchFeed retry", () => {
+	it("retries once on a transient 503 then succeeds", async () => {
+		const fetchFn = vi
+			.fn()
+			.mockResolvedValueOnce(new Response("busy", { status: 503 }))
+			.mockResolvedValueOnce(
+				new Response(RSS_SAMPLE, { status: 200 }),
+			) as unknown as typeof fetch;
+
+		const result = await fetchFeed("https://b.example/feed.xml", { fetchFn });
+		expect(fetchFn).toHaveBeenCalledTimes(2);
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.feed.title).toBe("Example Blog");
+	});
+
+	it("does not retry a deterministic 404", async () => {
+		const fetchFn = vi.fn(
+			async () => new Response("nope", { status: 404 }),
+		) as unknown as typeof fetch;
+
+		const result = await fetchFeed("https://b.example/missing", { fetchFn });
+		expect(fetchFn).toHaveBeenCalledTimes(1);
+		expect(result.ok).toBe(false);
 	});
 });

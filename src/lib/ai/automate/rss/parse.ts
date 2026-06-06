@@ -1,5 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import { normalizeText } from "@/lib/ai/rag/normalize";
+import { type Attempt, isTransientStatus, withRetry } from "../retry";
 
 /**
  * RSS 2.0 / Atom / RDF feed parser built on `fast-xml-parser`. The parser handles
@@ -196,11 +197,23 @@ export function parseFeed(xml: string): ParsedFeed {
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_FEED_BYTES = 8 * 1024 * 1024;
 
-/** Fetch and parse a feed URL. Network/parse failures return a `Result`. */
+/**
+ * Fetch and parse a feed URL, retrying transient failures. Network/parse
+ * failures return a `Result`.
+ */
 export async function fetchFeed(
 	url: string,
 	options: { fetchFn?: typeof fetch; signal?: AbortSignal } = {},
 ): Promise<FetchFeedResult> {
+	return withRetry(() => fetchFeedOnce(url, options), {
+		signal: options.signal,
+	});
+}
+
+async function fetchFeedOnce(
+	url: string,
+	options: { fetchFn?: typeof fetch; signal?: AbortSignal },
+): Promise<Attempt<FetchFeedResult>> {
 	const fetchFn = options.fetchFn ?? fetch;
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -219,30 +232,55 @@ export async function fetchFeed(
 			signal: controller.signal,
 		});
 		if (!response.ok) {
-			return { ok: false, error: `Feed returned ${response.status}.` };
+			return {
+				value: { ok: false, error: `Feed returned ${response.status}.` },
+				retry: isTransientStatus(response.status),
+			};
 		}
 		const xml = await response.text();
 		if (xml.length > MAX_FEED_BYTES) {
-			return { ok: false, error: "Feed exceeds the size limit." };
+			return {
+				value: { ok: false, error: "Feed exceeds the size limit." },
+				retry: false,
+			};
 		}
 		if (!/<rss[\s>]|<feed[\s>]|<rdf:RDF[\s>]/i.test(xml)) {
 			return {
-				ok: false,
-				error: "URL did not return a recognizable RSS/Atom feed.",
+				value: {
+					ok: false,
+					error: "URL did not return a recognizable RSS/Atom feed.",
+				},
+				retry: false,
 			};
 		}
 		const feed = parseFeed(xml);
 		if (feed.items.length === 0) {
-			return { ok: false, error: "Feed contained no items." };
+			return {
+				value: { ok: false, error: "Feed contained no items." },
+				retry: false,
+			};
 		}
-		return { ok: true, feed };
+		return { value: { ok: true, feed }, retry: false };
 	} catch (error) {
 		if (error instanceof DOMException && error.name === "AbortError") {
-			return { ok: false, error: "Feed fetch timed out." };
+			// A caller cancellation is final; our own timeout is worth a retry.
+			if (options.signal?.aborted) {
+				return {
+					value: { ok: false, error: "Feed fetch aborted." },
+					retry: false,
+				};
+			}
+			return {
+				value: { ok: false, error: "Feed fetch timed out." },
+				retry: true,
+			};
 		}
 		return {
-			ok: false,
-			error: error instanceof Error ? error.message : "Failed to fetch feed.",
+			value: {
+				ok: false,
+				error: error instanceof Error ? error.message : "Failed to fetch feed.",
+			},
+			retry: true,
 		};
 	} finally {
 		clearTimeout(timer);
