@@ -262,12 +262,7 @@ async function startOpenAICallbackServer(stateId: string): Promise<void> {
 		try {
 			const db = getDatabase();
 			const row = getState(stateId, db);
-			if (
-				!row ||
-				row.provider !== "openai" ||
-				row.state !== state ||
-				!row.verifier
-			) {
+			if (row?.provider !== "openai" || row.state !== state || !row.verifier) {
 				response.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
 				response.end(
 					oauthHtml("OpenAI OAuth session expired or mismatched.", false),
